@@ -64,6 +64,12 @@ Xposed、Magisk 等任何第三方框架，仅通过调用系统级接口实现�
 - TikTok 网络错误
 - 无法正常使用 TikTok 的完整功能
 
+### Samsung Health 区域限制解除
+
+- 无法通过 Samsung Health 的首次 SIM 卡检测
+- 无法同步健康数据
+- 无法正常使用 Samsung Health 的完整功能
+
 你可以：
 
 1. 使用 Nrfr 修改 SIM 卡国家码为支持的地区（如 JP、US 等）
