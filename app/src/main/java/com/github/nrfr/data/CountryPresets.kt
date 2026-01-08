@@ -34,6 +34,7 @@ object CountryPresets {
         CountryInfo("MX", "墨西哥"),
         CountryInfo("BR", "巴西"),
         CountryInfo("AR", "阿根廷"),
-        CountryInfo("ZA", "南非")
+        CountryInfo("ZA", "南非"),
+        CountryInfo("TR", "土耳其")
     ).sortedBy { it.name }  // 按国家名称排序
 } 

@@ -123,6 +123,11 @@ object PresetCarriers {
         CarrierPreset("MegaFon", "MegaFon", "RU"),
         CarrierPreset("Beeline", "Beeline", "RU"),
 
+        // 土耳其运营商
+        CarrierPreset("Turkcell", "Turkcell", "TR"),
+        CarrierPreset("Vodafone", "Vodafone TR", "TR"),
+        CarrierPreset("Türk Telekom", "Türk Telekom", "TR"),
+
         // 巴西运营商
         CarrierPreset("Vivo", "Vivo", "BR"),
         CarrierPreset("Claro", "Claro", "BR"),
