@@ -84,7 +84,12 @@ object CarrierConfigManager {
         }
     }
 
-    fun setCarrierConfig(subId: Int, countryCode: String?, carrierName: String? = null) {
+    fun setCarrierConfig(
+        context: Context,
+        subId: Int,
+        countryCode: String?,
+        carrierName: String? = null
+    ): Boolean {
         val bundle = PersistableBundle()
 
         // 设置国家码
@@ -101,14 +106,14 @@ object CarrierConfigManager {
             bundle.putString(CarrierConfigManager.KEY_CARRIER_NAME_STRING, carrierName)
         }
 
-        overrideCarrierConfig(subId, bundle)
+        return overrideCarrierConfig(context, subId, bundle)
     }
 
-    fun resetCarrierConfig(subId: Int) {
-        overrideCarrierConfig(subId, null)
+    fun resetCarrierConfig(context: Context, subId: Int): Boolean {
+        return overrideCarrierConfig(context, subId, null)
     }
 
-    private fun overrideCarrierConfig(subId: Int, bundle: PersistableBundle?) {
+    private fun overrideCarrierConfig(context: Context, subId: Int, bundle: PersistableBundle?): Boolean {
         val carrierConfigLoader = ICarrierConfigLoader.Stub.asInterface(
             ShizukuBinderWrapper(
                 TelephonyFrameworkInitializer
@@ -117,6 +122,16 @@ object CarrierConfigManager {
                     .get()
             )
         )
-        carrierConfigLoader.overrideConfig(subId, bundle, true)
+        try {
+            carrierConfigLoader.overrideConfig(subId, bundle, true)
+            return false
+        } catch (e: SecurityException) {
+            if (e.message?.contains("cannot be invoked by shell") == true) {
+                PrivilegedCarrierConfigRunner.overrideConfig(context, subId, bundle)
+                return true
+            } else {
+                throw e
+            }
+        }
     }
 }
