@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.github.nrfr"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.github.nrfr"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3 //版本更新 +1
-        versionName = "1.0.3" //同步更新版本号 rfr-client/app.go
+        versionCode = 4 //版本更新 +1
+        versionName = "1.0.4" //同步更新版本号 rfr-client/app.go
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

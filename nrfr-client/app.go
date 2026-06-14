@@ -452,7 +452,7 @@ func (a *App) CheckNrfrUpdate() (bool, error) {
 	}
 
 	// 最新版本号（从build.gradle.kts中获取）
-	latestVersion := "1.0.3" // 这里硬编码为当前最新版本
+	latestVersion := "1.0.4" // 这里硬编码为当前最新版本
 
 	// 比较版本号
 	return compareVersions(currentVersion, latestVersion) < 0, nil
