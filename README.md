@@ -95,7 +95,7 @@ Nrfr 通过调用 Android 系统级 API（CarrierConfigLoader）修改系统内�
 - 🔄 功能完善
    - 支持随时还原修改
    - 支持双卡设备，可分别配置
-   - 一次修改永久生效，重启后保持
+   - 修改通常立即生效；重启后是否保持取决于系统实现
 - 🚀 简单易用
    - 一键启动工具
    - 智能检测设备和 SIM 卡状态
@@ -141,7 +141,21 @@ Nrfr 通过调用 Android 系统级 API（CarrierConfigLoader）修改系统内�
     - 设置目标国家码
     - 应用修改
 
-修改完成后无需重启设备，设置会立即生效并永久保持。如需还原，请使用应用内的还原功能。
+修改通常会立即生效。能否在重启后保持取决于 Android 版本和厂商实现，请在自己的设备上验证；如需还原，请使用应用内的还原功能。
+
+### realme UI 兼容性说明
+
+旧版 ColorOS / realme UI 教程常要求在开发者选项中关闭“权限监控”或开启“禁止权限监控”。在本次测试的 realme UI 7.0 设备上没有找到这个旧名称；英文界面中的 `Disable system optimization` 不应仅凭名称假定为同一个开关，也不建议为了 Nrfr 盲目切换它。
+
+在 Shizuku 正常运行并取得授权的情况下，本机的 Android 16 电话服务仍会返回 `overrideConfig cannot be invoked by shell`。这表明电话服务还有独立的调用方检查。本版本检测到该错误后会切换到应用内 instrumentation 路径，修复不依赖上述开发者选项。
+
+已在真我 GT8 Pro（RMX5200）上使用基于官方 v1.0.3 APK、按本 PR 逻辑制作的等价重打包验证以下组合：
+
+- Android 16（SDK 36），realme UI 7.0（Oplus ROM V16.1.0），版本 `RMX5200_16.0.7.205(CN01)`
+- 通过 ADB 启动 Shizuku，并向 Nrfr 授权
+- 修复版本能够安装、启动并完成双卡运营商配置写入；CarrierConfig 服务在两个 phone block 中均读到 active override，未出现崩溃或 ANR
+
+该设备报告 persistent override 不存在，确认本次使用的是临时配置。本次测试未覆盖还原和重启后的持久性，请在重启后重新核对。当前 Kotlin 源码改动仍需通过 Gradle / CI 构建验证。
 
 ## 📦 构建
 
