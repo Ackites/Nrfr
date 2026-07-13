@@ -172,7 +172,7 @@ fun MainScreen(onShowAbout: () -> Unit) {
                 onReset = {
                     try {
                         val delayedRefresh = CarrierConfigManager.resetCarrierConfig(context, it.subId)
-                        Toast.makeText(context, "设置已还原", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "还原请求已提交，请稍后核对当前配置", Toast.LENGTH_SHORT).show()
                         refreshConfig(delayedRefresh)
                         selectedCountryCode = ""
                         selectedCarrier = null
@@ -199,7 +199,7 @@ fun MainScreen(onShowAbout: () -> Unit) {
                             countryCode,
                             carrierName
                         )
-                        Toast.makeText(context, "设置已保存", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "设置请求已提交；临时配置在重启后可能失效", Toast.LENGTH_LONG).show()
                         refreshConfig(delayedRefresh)
                     } catch (e: Exception) {
                         Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
