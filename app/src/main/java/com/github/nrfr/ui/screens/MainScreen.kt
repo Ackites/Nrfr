@@ -21,6 +21,8 @@ import com.github.nrfr.data.CountryPresets
 import com.github.nrfr.data.PresetCarriers
 import com.github.nrfr.manager.CarrierConfigManager
 import com.github.nrfr.model.SimCardInfo
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,6 +38,18 @@ fun MainScreen(onShowAbout: () -> Unit) {
     var isCountryCodeMenuExpanded by remember { mutableStateOf(false) }
     var isCarrierMenuExpanded by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    fun refreshConfig(delayed: Boolean) {
+        if (delayed) {
+            scope.launch {
+                delay(800)
+                refreshTrigger += 1
+            }
+        } else {
+            refreshTrigger += 1
+        }
+    }
 
     // 获取实际的 SIM 卡信息
     val simCards = remember(context, refreshTrigger) { CarrierConfigManager.getSimCards(context) }
@@ -157,9 +171,9 @@ fun MainScreen(onShowAbout: () -> Unit) {
                 customCarrierName = customCarrierName,
                 onReset = {
                     try {
-                        CarrierConfigManager.resetCarrierConfig(it.subId)
+                        val delayedRefresh = CarrierConfigManager.resetCarrierConfig(context, it.subId)
                         Toast.makeText(context, "设置已还原", Toast.LENGTH_SHORT).show()
-                        refreshTrigger += 1
+                        refreshConfig(delayedRefresh)
                         selectedCountryCode = ""
                         selectedCarrier = null
                         customCarrierName = ""
@@ -179,13 +193,14 @@ fun MainScreen(onShowAbout: () -> Unit) {
                         } else {
                             selectedCountryCode
                         }
-                        CarrierConfigManager.setCarrierConfig(
+                        val delayedRefresh = CarrierConfigManager.setCarrierConfig(
+                            context,
                             simCard.subId,
                             countryCode,
                             carrierName
                         )
                         Toast.makeText(context, "设置已保存", Toast.LENGTH_SHORT).show()
-                        refreshTrigger += 1
+                        refreshConfig(delayedRefresh)
                     } catch (e: Exception) {
                         Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
