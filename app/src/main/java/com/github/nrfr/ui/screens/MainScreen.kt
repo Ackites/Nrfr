@@ -2,8 +2,6 @@ package com.github.nrfr.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
@@ -11,39 +9,42 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.github.nrfr.R
-import com.github.nrfr.data.CountryPresets
-import com.github.nrfr.data.PresetCarriers
 import com.github.nrfr.manager.CarrierConfigManager
 import com.github.nrfr.model.SimCardInfo
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(onShowAbout: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedSimCard by remember { mutableStateOf<SimCardInfo?>(null) }
-    var selectedCountryCode by remember { mutableStateOf("") }
-    var customCountryCode by remember { mutableStateOf("") }
-    var isCustomCountryCode by remember { mutableStateOf(false) }
-    var selectedCarrier by remember { mutableStateOf<PresetCarriers.CarrierPreset?>(null) }
-    var customCarrierName by remember { mutableStateOf("") }
     var isSimCardMenuExpanded by remember { mutableStateOf(false) }
-    var isCountryCodeMenuExpanded by remember { mutableStateOf(false) }
-    var isCarrierMenuExpanded by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
-    // 获取实际的 SIM 卡信息
-    val simCards = remember(context, refreshTrigger) { CarrierConfigManager.getSimCards(context) }
+    fun refreshConfig(delayed: Boolean) {
+        if (delayed) {
+            scope.launch {
+                delay(1000)
+                refreshTrigger += 1
+            }
+        } else refreshTrigger += 1
+    }
 
-    // 当 simCards 更新时，更新选中的 SIM 卡信息
+    val simCards = remember(context, refreshTrigger) {
+        CarrierConfigManager.getSimCards(context)
+    }
+
     LaunchedEffect(simCards, selectedSimCard) {
-        if (selectedSimCard != null) {
-            selectedSimCard = simCards.find { it.slot == selectedSimCard?.slot }
+        selectedSimCard = when {
+            selectedSimCard == null -> simCards.firstOrNull {
+                it.carrierName.contains("CMLink", ignoreCase = true)
+            } ?: simCards.firstOrNull()
+            else -> simCards.find { it.subId == selectedSimCard?.subId } ?: simCards.firstOrNull()
         }
     }
 
@@ -52,18 +53,15 @@ fun MainScreen(onShowAbout: () -> Unit) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                            modifier = Modifier.size(48.dp),
-                            contentDescription = "App Icon",
+                            modifier = Modifier.size(40.dp),
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Nrfr")
+                        Spacer(Modifier.width(6.dp))
+                        Text("Backup Calling 测试")
                     }
                 },
                 actions = {
@@ -79,10 +77,13 @@ fun MainScreen(onShowAbout: () -> Unit) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // SIM卡选择
+            Text(
+                "目标：CMLink 正常提供流量，Vodafone 在无 Wi‑Fi 时通过 Backup Calling 工作。",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
             SimCardSelector(
                 simCards = simCards,
                 selectedSimCard = selectedSimCard,
@@ -91,106 +92,72 @@ fun MainScreen(onShowAbout: () -> Unit) {
                 onSimCardSelected = { selectedSimCard = it }
             )
 
-            // 显示当前选中的 SIM 卡的配置信息
-            selectedSimCard?.let { simCard ->
-                CurrentConfigCard(simCard = simCard)
+            selectedSimCard?.let { sim ->
+                StatusCard(sim)
+
+                Button(
+                    onClick = {
+                        try {
+                            val delayed = CarrierConfigManager.setChinaMobile46000NonRoaming(
+                                context,
+                                sim.subId
+                            )
+                            Toast.makeText(context, "已尝试：46000 视为非漫游", Toast.LENGTH_SHORT).show()
+                            refreshConfig(delayed)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "设置失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("① 将 46000 视为非漫游（推荐）")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val delayed = CarrierConfigManager.setForceHomeNetwork(context, sim.subId)
+                            Toast.makeText(context, "已尝试：Force Home", Toast.LENGTH_SHORT).show()
+                            refreshConfig(delayed)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "设置失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("② Force Home（所有网络视为非漫游）")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        try {
+                            val delayed = CarrierConfigManager.resetCarrierConfig(context, sim.subId)
+                            Toast.makeText(context, "已清除 CarrierConfig Override", Toast.LENGTH_SHORT).show()
+                            refreshConfig(delayed)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "恢复失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("恢复默认")
+                }
             }
 
-            // 国家码选择
-            CountryCodeSelector(
-                selectedCountryCode = selectedCountryCode,
-                isCustomCountryCode = isCustomCountryCode,
-                customCountryCode = customCountryCode,
-                isExpanded = isCountryCodeMenuExpanded,
-                onExpandedChange = { isCountryCodeMenuExpanded = it },
-                onCountryCodeSelected = { code ->
-                    selectedCountryCode = code
-                    isCustomCountryCode = false
-                },
-                onCustomSelected = {
-                    isCustomCountryCode = true
-                    selectedCountryCode = customCountryCode
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text("测试条件", style = MaterialTheme.typography.titleMedium)
+                    Text("• 只对 CMLink 操作。")
+                    Text("• Wi‑Fi 关闭，CMLink 作为默认移动数据卡。")
+                    Text("• Vodafone 的 Wi‑Fi 通话保持开启。")
+                    Text("• 三星“数据切换和备用通话”保持开启。")
+                    Text("• 先试 46000，不行再试 Force Home。")
+                    Text("• 这只改变 Android 的漫游判定，不改变运营商实际计费。")
                 }
-            )
-
-            // 自定义国家码输入框
-            if (isCustomCountryCode) {
-                CustomCountryCodeInput(
-                    value = customCountryCode,
-                    onValueChange = {
-                        if (it.length <= 2 && it.all { char -> char.isLetter() }) {
-                            customCountryCode = it.uppercase()
-                            selectedCountryCode = it.uppercase()
-                        }
-                    }
-                )
             }
-
-            // 运营商选择
-            CarrierSelector(
-                selectedCarrier = selectedCarrier,
-                isExpanded = isCarrierMenuExpanded,
-                onExpandedChange = { isCarrierMenuExpanded = it },
-                onCarrierSelected = { carrier ->
-                    selectedCarrier = carrier
-                    customCarrierName = carrier.displayName
-                }
-            )
-
-            // 自定义运营商名称输入框
-            if (selectedCarrier?.name == "自定义") {
-                CustomCarrierNameInput(
-                    value = customCarrierName,
-                    onValueChange = { customCarrierName = it }
-                )
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // 按钮行
-            ActionButtons(
-                selectedSimCard = selectedSimCard,
-                selectedCountryCode = selectedCountryCode,
-                isCustomCountryCode = isCustomCountryCode,
-                customCountryCode = customCountryCode,
-                selectedCarrier = selectedCarrier,
-                customCarrierName = customCarrierName,
-                onReset = {
-                    try {
-                        CarrierConfigManager.resetCarrierConfig(it.subId)
-                        Toast.makeText(context, "设置已还原", Toast.LENGTH_SHORT).show()
-                        refreshTrigger += 1
-                        selectedCountryCode = ""
-                        selectedCarrier = null
-                        customCarrierName = ""
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "还原失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                onSave = { simCard ->
-                    try {
-                        val carrierName = if (selectedCarrier?.name == "自定义") {
-                            customCarrierName.takeIf { it.isNotEmpty() }
-                        } else {
-                            selectedCarrier?.displayName
-                        }
-                        val countryCode = if (isCustomCountryCode) {
-                            customCountryCode.takeIf { it.length == 2 }
-                        } else {
-                            selectedCountryCode
-                        }
-                        CarrierConfigManager.setCarrierConfig(
-                            simCard.subId,
-                            countryCode,
-                            carrierName
-                        )
-                        Toast.makeText(context, "设置已保存", Toast.LENGTH_SHORT).show()
-                        refreshTrigger += 1
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
         }
     }
 }
@@ -209,284 +176,55 @@ private fun SimCardSelector(
         onExpandedChange = onExpandedChange
     ) {
         OutlinedTextField(
-            value = selectedSimCard?.let { "SIM ${it.slot} (${it.carrierName})" } ?: "",
+            value = selectedSimCard?.let {
+                "SIM ${it.slot} · ${it.carrierName} · subId ${it.subId}"
+            } ?: "",
             onValueChange = {},
             readOnly = true,
-            label = { Text("选择SIM卡") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor()
-        )
-        ExposedDropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = { onExpandedChange(false) }
-        ) {
-            simCards.forEach { simCard ->
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text("SIM ${simCard.slot} (${simCard.carrierName})")
-                            if (simCard.currentConfig.isEmpty()) {
-                                Text(
-                                    "无覆盖配置",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                simCard.currentConfig.forEach { (key, value) ->
-                                    Text(
-                                        "$key: $value",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    onClick = {
-                        onSimCardSelected(simCard)
-                        onExpandedChange(false)
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CurrentConfigCard(simCard: SimCardInfo) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                "当前配置",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            if (simCard.currentConfig.isEmpty()) {
-                Text(
-                    "无覆盖配置",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                simCard.currentConfig.forEach { (key, value) ->
-                    Text(
-                        "$key: $value",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CountryCodeSelector(
-    selectedCountryCode: String,
-    isCustomCountryCode: Boolean,
-    customCountryCode: String,
-    isExpanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onCountryCodeSelected: (String) -> Unit,
-    onCustomSelected: () -> Unit
-) {
-    ExposedDropdownMenuBox(
-        expanded = isExpanded,
-        onExpandedChange = onExpandedChange
-    ) {
-        OutlinedTextField(
-            value = when {
-                isCustomCountryCode -> "自定义"
-                selectedCountryCode.isEmpty() -> ""
-                else -> CountryPresets.countries.find { it.code == selectedCountryCode }
-                    ?.let { "${it.name} (${it.code})" }
-                    ?: selectedCountryCode
+            label = { Text("选择数据 SIM（选 CMLink）") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
             },
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("选择国家码") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor()
         )
+
         ExposedDropdownMenu(
             expanded = isExpanded,
             onDismissRequest = { onExpandedChange(false) }
         ) {
-            // 预设国家码列表
-            CountryPresets.countries.forEach { countryInfo ->
+            simCards.forEach { sim ->
                 DropdownMenuItem(
-                    text = { Text("${countryInfo.name} (${countryInfo.code})") },
+                    text = { Text("SIM ${sim.slot} · ${sim.carrierName} · subId ${sim.subId}") },
                     onClick = {
-                        onCountryCodeSelected(countryInfo.code)
+                        onSimCardSelected(sim)
                         onExpandedChange(false)
                     }
                 )
             }
-            // 自定义选项
-            DropdownMenuItem(
-                text = { Text("自定义") },
-                onClick = {
-                    onCustomSelected()
-                    onExpandedChange(false)
-                }
-            )
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomCountryCodeInput(
-    value: String,
-    onValueChange: (String) -> Unit
-) {
-    val focusManager = LocalFocusManager.current
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text("自定义国家码 (2位字母)") },
-        keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.Text,
-            imeAction = ImeAction.Done
-        ),
-        keyboardActions = KeyboardActions(
-            onDone = {
-                focusManager.clearFocus()
+private fun StatusCard(sim: SimCardInfo) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text("当前读取到的配置", style = MaterialTheme.typography.titleMedium)
+            Text("运营商：${sim.carrierName}")
+            Text("逻辑 SIM：${sim.slot}")
+            Text("subId：${sim.subId}")
+            if (sim.currentConfig.isEmpty()) {
+                Text("未读到配置")
+            } else {
+                sim.currentConfig.forEach { (key, value) ->
+                    Text("$key：$value")
+                }
             }
-        ),
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CarrierSelector(
-    selectedCarrier: PresetCarriers.CarrierPreset?,
-    isExpanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onCarrierSelected: (PresetCarriers.CarrierPreset) -> Unit
-) {
-    ExposedDropdownMenuBox(
-        expanded = isExpanded,
-        onExpandedChange = onExpandedChange
-    ) {
-        OutlinedTextField(
-            value = selectedCarrier?.name ?: "",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("选择运营商") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor()
-        )
-        ExposedDropdownMenu(
-            expanded = isExpanded,
-            onDismissRequest = { onExpandedChange(false) }
-        ) {
-            // 分组显示运营商
-            PresetCarriers.presets
-                .groupBy { it.region }
-                .forEach { (region, carriers) ->
-                    if (region.isNotEmpty()) {
-                        val regionName = CountryPresets.countries.find { it.code == region }?.name ?: region
-                        Text(
-                            regionName,
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        carriers.forEach { carrier ->
-                            DropdownMenuItem(
-                                text = { Text(carrier.name) },
-                                onClick = {
-                                    onCarrierSelected(carrier)
-                                    onExpandedChange(false)
-                                }
-                            )
-                        }
-                        Divider(modifier = Modifier.padding(vertical = 4.dp))
-                    }
-                }
-
-            // 自定义选项
-            PresetCarriers.presets
-                .filter { it.region.isEmpty() }
-                .forEach { carrier ->
-                    DropdownMenuItem(
-                        text = { Text(carrier.name) },
-                        onClick = {
-                            onCarrierSelected(carrier)
-                            onExpandedChange(false)
-                        }
-                    )
-                }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CustomCarrierNameInput(
-    value: String,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text("自定义运营商名称") },
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-private fun ActionButtons(
-    selectedSimCard: SimCardInfo?,
-    selectedCountryCode: String,
-    isCustomCountryCode: Boolean,
-    customCountryCode: String,
-    selectedCarrier: PresetCarriers.CarrierPreset?,
-    customCarrierName: String,
-    onReset: (SimCardInfo) -> Unit,
-    onSave: (SimCardInfo) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 还原按钮
-        OutlinedButton(
-            onClick = { selectedSimCard?.let(onReset) },
-            modifier = Modifier.weight(1f),
-            enabled = selectedSimCard != null
-        ) {
-            Text("还原设置")
-        }
-
-        // 保存按钮
-        Button(
-            onClick = { selectedSimCard?.let(onSave) },
-            modifier = Modifier.weight(1f),
-            enabled = selectedSimCard != null && (
-                    (isCustomCountryCode && customCountryCode.length == 2) ||
-                            (!isCustomCountryCode && selectedCountryCode.isNotEmpty()) ||
-                            (selectedCarrier != null && (selectedCarrier.name != "自定义" || customCarrierName.isNotEmpty()))
-                    )
-        ) {
-            Text("保存生效")
         }
     }
 }
