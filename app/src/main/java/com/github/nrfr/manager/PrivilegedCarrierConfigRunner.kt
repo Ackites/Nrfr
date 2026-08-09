@@ -9,7 +9,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.os.PersistableBundle
-import android.os.Process
+import android.os.Process as AndroidProcess
 import android.os.ServiceManager
 import android.system.Os
 import android.telephony.CarrierConfigManager
@@ -35,7 +35,7 @@ object PrivilegedCarrierConfigRunner {
 
     fun overrideConfig(context: Context, subId: Int, bundle: PersistableBundle?) {
         val args = Bundle().apply {
-            putInt(ARG_CALLER_PID, Process.myPid())
+            putInt(ARG_CALLER_PID, AndroidProcess.myPid())
             putInt(ARG_SUB_ID, subId)
             putBoolean(ARG_RESET, bundle == null)
             if (bundle != null) putParcelable(ARG_CONFIG, bundle)
@@ -94,7 +94,7 @@ object PrivilegedCarrierConfigRunner {
         return stdout.toString()
     }
 
-    private fun newShizukuProcess(command: Array<String>): Process {
+    private fun newShizukuProcess(command: Array<String>): java.lang.Process {
         val newProcess = Shizuku::class.java.getDeclaredMethod(
             "newProcess",
             Array<String>::class.java,
@@ -102,7 +102,7 @@ object PrivilegedCarrierConfigRunner {
             String::class.java
         )
         newProcess.isAccessible = true
-        return newProcess.invoke(null, command, null, null) as Process
+        return newProcess.invoke(null, command, null, null) as java.lang.Process
     }
 
     private fun readAsync(inputStream: InputStream, output: StringBuilder): Thread {
@@ -121,7 +121,7 @@ class PrivilegedCarrierConfigInstrumentation : Instrumentation() {
     override fun onCreate(arguments: Bundle) {
         super.onCreate(arguments)
 
-        if (arguments.getInt(ARG_CALLER_PID, 0) != Process.myPid()) {
+        if (arguments.getInt(ARG_CALLER_PID, 0) != AndroidProcess.myPid()) {
             finish(0, Bundle())
             return
         }
